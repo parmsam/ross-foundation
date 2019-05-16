@@ -1,0 +1,138 @@
+---
+title: "Ross Foundation 2018 Toy Giveaway Data Report"
+author: "Sam Parmar"
+date: "December 2018"
+output:
+  html_document: default
+---
+###### Purpose: Assess Ross Foundation Christmas 2018 Toy Giveaway Survey Data 
+###### Significance: Obtain actionable findings from most recent intake data
+###### Limitations and Warnings: Possible response bias 
+
+#### First lets load the R packages we need before doing our analysis
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
+#1)Load packages and set graphs theme
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+ipak(c("tidyverse","rio","stringr","ggthemes","dplyr","knitr","kableExtra"))
+theme_set(theme_minimal())
+```
+
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
+#2)Import data
+rd<-import("/Users/Sam/Downloads/Ross Foundations Services Referral form (Responses).xlsx")
+```
+
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
+#3)Perform data standardization and create a few variables
+
+rd1<- rd %>% mutate(
+  Ethnicity=ifelse(is.na(Ethnicity)|str_detect(`Ethnicity`,paste(c("bi-racial","multi-racial","Multiple","Multiracial","White & Puerto Rican"),collapse="|")) , "Missing or Other", Ethnicity),NumAttTheor=ifelse(str_detect(`Children age ranges`,"16-19"), `Number of Children in Household`-1, `Number of Children in Household`),
+  NumAttTheor=ifelse(is.na(NumAttTheor), str_count(`Children age ranges`,"-"),NumAttTheor)) 
+
+rd2 <- rd1 %>% mutate(Det_ADHD = ifelse( str_detect(`Please provide any details for choice above`,c("ADHD")), 1,0),
+                      Det_Depression = ifelse( str_detect(`Please provide any details for choice above`,c("depression")), 1,0),
+                      Det_Asthma = ifelse( str_detect(`Please provide any details for choice above`,c("asthma")), 1,0),
+                      Det_FoodStamps = ifelse( str_detect(`Please provide any details for choice above`,c("stamps")), 1,0))
+
+
+rd2 <- rd2 %>% mutate(Child_Infant=ifelse(str_detect(`Children age ranges`,"Infant"), 1,0),
+                      Child_1to3=ifelse(str_detect(`Children age ranges`,"1-3"), 1,0),
+                      Child_4to7=ifelse(str_detect(`Children age ranges`,"4-7"), 1,0),
+                      Child_8to11=ifelse(str_detect(`Children age ranges`,"8-11"), 1,0),
+                      Child_12to15=ifelse(str_detect(`Children age ranges`,"12-15"), 1,0),
+                      Child_16to19=ifelse(str_detect(`Children age ranges`,"16-19"), 1,0)
+)
+
+rd2 <- rd2 %>% mutate(F_Housing=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Housing"), 1,0),
+                      F_EmploymentFin=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Basic needs (food, clothing)"), 1,0),
+                      F_BasicNeeds=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Basic needs (food, clothing)"), 1,0),
+                      F_Legal=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Legal"), 1,0),
+                      F_HealthIns=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Health Insurance"), 1,0),
+                      F_HealthMH=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Health/mental health"), 1,0),
+                      F_fsrissues=ifelse(str_detect(`Please check all issues that apply to this FAMILY`,"Parent/family/student relationship issues"), 1,0)
+)
+
+rd2 <- rd2 %>% mutate(C_Academics=ifelse(str_detect(`Please check all issues that apply to CHILDREN`,"Academics"), 1,0),
+                      C_Attendance=ifelse(str_detect(`Please check all issues that apply to CHILDREN`,"Attendance"), 1,0),
+                      C_EmotBehav=ifelse(str_detect(`Please check all issues that apply to CHILDREN`,"Emotional/Behavioral support"), 1,0),
+                      C_MedIss=ifelse(str_detect(`Please check all issues that apply to CHILDREN`,"Medical issues"), 1,0),
+                      C_Discipline=ifelse(str_detect(`Please check all issues that apply to CHILDREN`,"Discipline"), 1,0)
+)
+
+labs <- c(paste(seq(0, 95, by = 5), seq(0 + 5 - 1, 100 - 1, by = 5),
+                sep = "-"), paste(100, "+", sep = ""))
+rd2$AgeGroup <- cut(rd2$Age, breaks = c(seq(0, 100, by = 5), Inf), labels = labs, right = FALSE)
+
+#remove unnecessary data frames from env
+rm(rd,rd1)
+```
+
+#### 1)Estimated number of children that attended our Toy Drive:
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
+rd2 %>% select(NumAttTheor) %>% 
+  summarise_all(funs(mean, max, min,sum), na.rm = TRUE) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+* Estimated 505  children (based on reported household size and age range combination) attended our event 
+* Note that this is an underestimated b/c many parents did not report the children that they brought to the event and only reported their own household size. We have added a question on our intake form asking on how many children parents/guardians bring with them to our events.  
+
+
+#### 2) Parent demographics info:
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
+
+
+
+rd2 %>% summarize(CountParents=n()) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+#Breakdown of Parents that attended by Ethnicity:
+rd2 %>% group_by(Ethnicity) %>% summarize(CountParents=n()) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+#Breakdown of Parents by Age and Race/Ethnicities
+rd2 %>% group_by(`AgeGroup`) %>% summarize(Total=n()) %>% merge(., (rd2 %>% group_by(`AgeGroup`, Ethnicity) %>% summarize(CountNames=n()) %>% spread(Ethnicity, CountNames)),by="AgeGroup") %>% arrange(AgeGroup) %>%
+kable() %>%
+kable_styling(bootstrap_options = "striped", full_width = F)
+```
+* Roughly 176 parents attended our 2018 Toy Drive
+* When looking by race/ethnicity, the majority were Black.
+* When looking by age group, the majority were 25-29.
+
+#### 3) Reported family issues/needs:
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE} 
+#Family Issues/Needs from Parents that attended our Toy Drive (responses not mutually exclusive)
+rd2 %>% select(starts_with("F_")) %>% 
+  summarise_all(funs(sum), na.rm = TRUE) %>%  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+#Children Issues/Needs from Parents that attended our Toy Drive (responses not mutually exclusive)
+rd2 %>% select(starts_with("C_")) %>% 
+  summarise_all(funs(sum), na.rm = TRUE) %>%  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+* For family issues (upper table): We see the most parents reported housing issues (n=50), health insurance issues (n=22), and then parent/family/student relationship issues (n= 19). 
+* Interestingly many parents did not mention mental health (n=9) or legal issues (n=6). People may be less likely to report mental illness due to stigma associated around mental health issues or mental illness normalization.
+* For children issues (lower table): We see the most parents reported emotional behavioral issues (n=35), then academic issues (n=30), and then discipline issues (n=8) for their children. This highlights the importance of student support services at our events. 
+
+#### 4) Additional detailed responses that some parents had:
+##### Here we see additional concerns that parents/guardians raised which we will be considering at our future events and outreach services, in our efforts to improve our community. This is based on what individuals wrote in to further detail their family/children issue choices.
+```{r message=FALSE, warning=FALSE, error=FALSE, echo=FALSE} 
+#Additional Detail Responses for Choices (where response was written)
+rd2 %>% filter(!is.na(`Please provide any details for choice above`))  %>% select(`Please provide any details for choice above`) %>% rename(Additional_Details=1) %>% kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+
+
+
